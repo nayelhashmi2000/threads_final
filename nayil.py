@@ -14,6 +14,8 @@ import PIL
 import time
 import shutil
 from ctypes import *
+import os.path
+from os import path
 import numpy as np
 t1 = time.time()
 
@@ -45,6 +47,12 @@ def insertBLOB(Id, photo):
         max_id = cursor.execute("""SELECT count(id) FROM cones""")
         sqlite_insert_blob_query = f""" INSERT INTO cones
                                   (roi) VALUES (?)"""
+        """if(path.exists(photo) == False):
+            data_tuple = ("Rejected",)
+            cursor.execute(sqlite_insert_blob_query, data_tuple)
+            sqliteConnection.commit()
+            print("Rejected file inserted successfully as a BLOB into a table")
+            cursor.close()"""
 
         roi = convertToBinaryData(photo)
         # Convert data into tuple format
@@ -60,6 +68,14 @@ def insertBLOB(Id, photo):
         if sqliteConnection:
             sqliteConnection.close()
             print("the sqlite connection is closed")
+
+"""def notcropped(Id, photo):
+    try:
+        sqliteConnection = sqlite3.connect('threads.db')
+        cursor = sqliteConnection.cursor()
+        print("Connected to SQLite")"""
+
+
 
 
 def coords(list):
@@ -87,35 +103,41 @@ def saveimg(image_roi):
 
 
 def roi(name_img, name_file):
-    path = "runs/detect/exp/images/"
-    for img in glob.glob(path + name_img):
+    path_file = "runs/detect/exp/images/"
+    for img in glob.glob(path_file + name_img):
         # with open(path + "labels/" + name_file, 'r') as file:
-        label_path = f"runs/detect/exp/labels/{image_name}" + '.txt'
-        if(label_path != None):
-            with open(label_path, 'r') as file:
+        file_path = f"runs/detect/exp/labels/{total_images}" + '.txt' 
+        bool_path = path.exists(file_path)
+        print(bool_path)
+        print(total_images)
+        #print(name_img)
+        if(bool_path == True):
+            with open(f"{file_path}", 'r') as file:
                 data = file.read().replace("\n",'')
                 #print(data)
                 li = data.split(" ")
                 #print(li)
-                final_dictionary, xmin, ymin, xmax , ymax = coords(li)
+                final_dictionary, xmin, ymin, xmax ,ymax = coords(li)
                 xmn = int(xmin)
                 ymn = int(ymin)
                 xmx = int(xmax)
                 ymx = int(ymax)
                 img = cv2.imread(img)
                 # cv2.imshow("Full Image",img)
-                cv2.waitKey(0)
+                #cv2.waitKey(0)
                 print(f"cropped image details: {final_dictionary}\n")
                 cropped_image = img[ymn:ymx , xmn:xmx]
-                print("hello")
+                #print("hello")
                 #cv2.imshow("ROI", cropped_image)
-                cv2.imwrite(f"runs/detect/exp/cropped/{name_img}", cropped_image)
+                print(cropped_image)
+                cv2.imwrite(f"runs/detect/exp/cropped/{image_name}" + '.jpg', cropped_image)
                 # status = "ACCEPTED"
-                return img, cropped_image 
+                return cropped_image 
                 #cv2.waitKey(0)
         else:
             # status = 'REJECTED'
-            return img, 0
+            cropped_image = np.zeros((100,100,3), dtype=np.uint8)
+            return cropped_image 
 
 load_model()
 
@@ -139,12 +161,18 @@ image_name = cursor.execute("""SELECT count(id) FROM cones""").fetchall()[0][0]
 cursor.close()
 os.environ['path'] += ';.\\camera'
 libKsj = WinDLL("camera\KSJApi64.dll")
+total_images = len(os.listdir("runs/detect/exp/images"))
+#accepted_images = cursor.execute("""SELECT count(id) FROM cones""").fetchall()[0][0]
+#rejected_images = int(image_name) - int(accepted_images)
 
 
 @app.route('/', methods=['GET', 'POST'])
 def hello_world():
     if request.method == 'GET':
         global image_name
+        global total_images
+        # global rejected_images
+        # global accepted_images
         #img = cv2.imread('index.jpeg', 0)
 
         # libKsj.KSJ_Init()
@@ -186,8 +214,10 @@ def hello_world():
 
         img = cv2.flip(img, 0)
 
-        a = yoloTiny.detect(img, image_name)
-        cv2.imwrite(f"runs/detect/exp/images/{image_name}.jpg", a)
+        a = yoloTiny.detect(img, total_images)
+        #a_list  = embeddings.tolist(b)
+        #print(b.flatten().tolist())
+        cv2.imwrite(f"runs/detect/exp/images/{total_images}.jpg", a)
         # full_image, cropped_image = roi(f"{image_name}.jpg", "exp.txt")
         # insertBLOB(image_name, f"runs/detect/exp/cropped/{image_name}.jpg")
         # print(image_name)
@@ -198,10 +228,9 @@ def hello_world():
         # image_name += 1
 
         # return json.dumps({"image": my_string.decode('utf-8'), "image1": my_string1.decode('utf-8')})
-        full_image, cropped_image = roi(f"{image_name}.jpg","exp.txt")
-        accepted_images = 0
-        rejected_images = 0
-        if(cropped_image.all() == 0):
+        cropped_image = roi(f"{total_images}.jpg","exp.txt")
+        
+        if(cropped_image.any() == True):
             insertBLOB(image_name,f"runs/detect/exp/cropped/{image_name}.jpg")
             print(image_name)
             status = "ACCEPTED"
@@ -211,17 +240,19 @@ def hello_world():
             with open(f"runs/detect/exp/images/{image_name}.jpg","rb") as img1_file:
                 my_string1 = base64.b64encode(img1_file.read())
             image_name +=1
-            accepted_images +=1 
-            summary = f'Accepted cones: {accepted_images}'
+            #accepted_images +=1 
+            summary = f'Accepted cones: {image_name}'
             return json.dumps({"image": my_string.decode('utf-8'), "image1": my_string1.decode('utf-8'), 'Status': status, 'Summary': summary})
             # return jsonify({'Status': status})
         else:
             status = "REJECTED"
-            with open(f"runs/detect/exp/images/{image_name}.jpg","rb") as img1_file:
+            #insertBLOB(image_name, f"runs/detect/exp/cropped/{image_name}.jpg")
+            with open(f"runs/detect/exp/images/{total_images}.jpg","rb") as img1_file:
                 my_string1 = base64.b64encode(img1_file.read())
-            image_name +=1
+            #image_name +=1
             print(status)
-            rejected_images +=1
+            rejected_images = int(total_images) - int(image_name)
+            #rejected_images +=1
             summary = f'rejected cones = {rejected_images}'
             return json.dumps({"image1": my_string1.decode('utf-8'), 'Status': status, 'Summary': summary}) 
             # return jsonify({'Status': status})
