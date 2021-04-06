@@ -237,11 +237,13 @@ def hello_world():
             print(status)
             with open(f"runs/detect/exp/cropped/{image_name}.jpg","rb") as img_file:
                 my_string = base64.b64encode(img_file.read())
-            with open(f"runs/detect/exp/images/{image_name}.jpg","rb") as img1_file:
+            with open(f"runs/detect/exp/images/{total_images}.jpg","rb") as img1_file:
                 my_string1 = base64.b64encode(img1_file.read())
             image_name +=1
             #accepted_images +=1 
-            summary = f'Accepted cones: {image_name}'
+            summary = image_name
+            total_images +=1
+            libKsj.KSJ_UnInit()
             return json.dumps({"image": my_string.decode('utf-8'), "image1": my_string1.decode('utf-8'), 'Status': status, 'Summary': summary})
             # return jsonify({'Status': status})
         else:
@@ -251,9 +253,12 @@ def hello_world():
                 my_string1 = base64.b64encode(img1_file.read())
             #image_name +=1
             print(status)
-            rejected_images = int(total_images) - int(image_name)
-            #rejected_images +=1
-            summary = f'rejected cones = {rejected_images}'
+            rejected_images = int(total_images) - int(image_name) 
+            rejected_images +=1
+            total_images +=1
+            print(rejected_images)
+            summary = rejected_images
+            libKsj.KSJ_UnInit()
             return json.dumps({"image1": my_string1.decode('utf-8'), 'Status': status, 'Summary': summary}) 
             # return jsonify({'Status': status})
 
